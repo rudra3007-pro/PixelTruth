@@ -15,6 +15,7 @@ from metrics import (
     get_roc_curve_caption,
     get_dataset_distribution_caption,
 )
+from model_utils import ensure_model_file, get_model_path, get_model_url, get_model_sha256
 
 st.set_page_config(
     page_title="PixelTruth",
@@ -73,19 +74,54 @@ footer {visibility: hidden;}
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ----------------------- LOAD MODEL ------------------------
+MODEL_PATH = get_model_path()
+MODEL_URL = get_model_url()
+MODEL_SHA256 = get_model_sha256()
+
+
 @st.cache_resource
 def load_deepfake_model():
     try:
-        if os.path.exists("deepfake_detection_model.h5"):
-            return load_model("deepfake_detection_model.h5")
-        else:
-            st.error("Model file 'deepfake_detection_model.h5' not found in the current directory.")
-            return None
+        model_file_path = ensure_model_file(
+            model_path=MODEL_PATH,
+            model_url=MODEL_URL,
+            model_sha256=MODEL_SHA256,
+            download_if_missing=True,
+        )
+        return load_model(model_file_path)
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
         return None
 
 model = load_deepfake_model()
+
+
+def render_missing_model_help():
+    st.error(f"Model file '{MODEL_PATH}' not found in the current directory.")
+    st.markdown(
+        f"""
+        ### Model setup required
+
+        PixelTruth needs a trained Keras model before it can run predictions.
+
+        1. Download or generate the model file.
+        2. Save it as `{MODEL_PATH}` in the project root, or point `PIXELTRUTH_MODEL_PATH` to its location.
+        3. Optionally set `PIXELTRUTH_MODEL_URL` to a GitHub Release asset or direct download link so the app can fetch it automatically on first run.
+        4. Restart the app with `streamlit run app.py`.
+
+        If you are using a release or shared model asset, place the downloaded file here:
+
+        ```bash
+        cp /path/to/downloaded/{MODEL_PATH} ./{MODEL_PATH}
+        ```
+
+        Optional checksum verification:
+
+        ```bash
+        export PIXELTRUTH_MODEL_SHA256=<sha256-from-release>
+        ```
+        """
+    )
 
 # ----------------------- IMAGE PIPELINE --------------------
 def preprocess_image(image):
@@ -170,7 +206,7 @@ with col_right:
     if uploaded_file is None:
         st.write("Upload an image on the left to run deepfake detection.")
     elif model is None:
-        st.error("Model could not be loaded. Detection is unavailable.")
+        render_missing_model_help()
     else:
         with st.spinner("Analyzing image with the deepfake model..."):
             label, confidence = predict_image(image)
