@@ -436,11 +436,11 @@ st.markdown("#### 🎯 Classification Analysis")
 col_cm, col_roc = st.columns(2)
 
 with col_cm:
-    st.pyplot(get_confusion_matrix_plot(), use_container_width=True)
+    st.plotly_chart(get_confusion_matrix_plot(), use_container_width=True, config={'scrollZoom': True, 'displayModeBar': True})
     st.caption(get_confusion_matrix_caption())
 
 with col_roc:
-    st.pyplot(get_roc_curve_plot(), use_container_width=True)
+    st.plotly_chart(get_roc_curve_plot(), use_container_width=True, config={'scrollZoom': True, 'displayModeBar': True})
     st.caption(get_roc_curve_caption())
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -451,7 +451,7 @@ st.markdown("#### 📊 Data & Class-Level Insights")
 col_dist, col_stats = st.columns(2)
 
 with col_dist:
-    st.pyplot(get_dataset_distribution_plot(), use_container_width=True)
+    st.plotly_chart(get_dataset_distribution_plot(), use_container_width=True, config={'scrollZoom': True, 'displayModeBar': True})
     st.caption(get_dataset_distribution_caption())
 
 with col_stats:
