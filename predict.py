@@ -37,9 +37,7 @@ SUPPORTED_EXTENSIONS = {
 
 
 def preprocess_image(image_path: str) -> np.ndarray:
-    """
-    Read and preprocess an image for the model.
-    """
+    """Read and preprocess an image."""
 
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
@@ -53,6 +51,7 @@ def preprocess_image(image_path: str) -> np.ndarray:
         )
 
     try:
+
         with open(image_path, "rb") as file_handle:
             image_bytes = file_handle.read()
 
@@ -75,9 +74,7 @@ def preprocess_image(image_path: str) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def predict_image(image_path: str) -> dict:
-    """
-    Run deepfake detection on a single image.
-    """
+    """Run deepfake detection on a single image."""
 
     image = preprocess_image(image_path)
 
@@ -110,9 +107,6 @@ def predict_image(image_path: str) -> dict:
 
     confidence = float(np.max(prediction)) * 100
 
-    # Dataset mapping:
-    # class 0 = Real
-    # class 1 = Fake
     label = "Fake" if class_index == 1 else "Real"
 
     return {
@@ -136,11 +130,6 @@ def build_parser() -> argparse.ArgumentParser:
             "Classifies one or more images as Real or Fake."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  python predict.py photo.jpg\n"
-            "  python predict.py img1.jpg img2.png --json\n"
-        ),
     )
 
     parser.add_argument(
@@ -167,10 +156,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """
-    Entry point.
-    Returns 0 on success, 1 if any image fails.
-    """
 
     parser = build_parser()
 
@@ -207,10 +192,6 @@ def main(argv: list[str] | None = None) -> int:
             if not args.quiet:
                 print(f"[ERROR] {exc}", file=sys.stderr)
 
-    # -----------------------------------------------------------------------
-    # JSON Output
-    # -----------------------------------------------------------------------
-
     if args.output_json:
 
         print(
@@ -219,10 +200,6 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2
             )
         )
-
-    # -----------------------------------------------------------------------
-    # Standard Output
-    # -----------------------------------------------------------------------
 
     else:
 
