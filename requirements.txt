@@ -9,4 +9,6 @@ scikit-learn==1.4.2
 matplotlib==3.8.3
 seaborn==0.13.1
 plotly>=5.15.0
-
+fastapi>=0.100.0
+uvicorn>=0.23.0
+python-multipart>=0.0.6
