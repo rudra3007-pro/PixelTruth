@@ -9,3 +9,7 @@ class PreprocessingError(PixelTruthError):
 class ModelExecutionError(PixelTruthError):
     """Raised when the deep learning model encounters an error during inference."""
     pass
+
+class ModelDownloadError(PixelTruthError):
+    """Raised when the model file cannot be downloaded (network error, HTTP error, timeout, etc.)."""
+    pass
