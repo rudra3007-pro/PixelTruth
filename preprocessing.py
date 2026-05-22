@@ -39,6 +39,11 @@ def preprocess_image_from_path(image_path: str | Path) -> np.ndarray:
     
     return preprocess_image_array(image)
 
+def get_image_metadata(image: np.ndarray) -> dict:
+    h, w = image.shape[:2]
+    channels = image.shape[2] if image.ndim == 3 else 1
+    return {"height": h, "width": w, "channels": channels}
+
 
 @lru_cache(maxsize=32)
 def decode_image_bytes(image_bytes: bytes) -> np.ndarray:
