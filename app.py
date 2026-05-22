@@ -117,6 +117,10 @@ def load_deepfake_model():
 # import this module without wanting heavy model-loading side effects.
 model = None
 
+# Load the cached model during Streamlit execution so predictions can run
+# when a configured model file or download source is available.
+model = load_deepfake_model()
+
 
 def render_missing_model_help():
     st.error(f"Model file '{MODEL_PATH}' not found in the current directory.")
