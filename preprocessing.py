@@ -3,6 +3,7 @@ from functools import lru_cache
 import cv2
 import numpy as np
 from tensorflow.keras.preprocessing.image import img_to_array
+from pathlib import Path
 
 
 TARGET_IMAGE_SIZE = (96, 96)
@@ -26,6 +27,18 @@ def preprocess_image_array(image: np.ndarray) -> np.ndarray:
     image = np.expand_dims(image, axis=0)
     image = image / 255.0
     return image
+
+
+def preprocess_image_from_path(image_path: str | Path) -> np.ndarray:
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"No file found at: {path}")
+    
+    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Could not decode image at '{path}'.")
+    
+    return preprocess_image_array(image)
 
 
 @lru_cache(maxsize=32)
