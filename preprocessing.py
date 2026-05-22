@@ -2,7 +2,6 @@ from functools import lru_cache
 
 import cv2
 import numpy as np
-from tensorflow.keras.preprocessing.image import img_to_array
 from pathlib import Path
 
 
@@ -23,7 +22,7 @@ def preprocess_image_array(image: np.ndarray) -> np.ndarray:
     validate_image_dimensions(image)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = cv2.resize(image, TARGET_IMAGE_SIZE)
-    image = img_to_array(image)
+    image = image.astype("float32")
     image = np.expand_dims(image, axis=0)
     image = image / 255.0
     return image
