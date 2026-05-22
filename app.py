@@ -200,7 +200,7 @@ st.markdown(
 )
 
 if os.path.exists("coverpage.png"):
-    st.image("coverpage.png", use_column_width=True)
+    st.image("coverpage.png", use_container_width=True)
 
 # ----------------------- TOP INFO SECTION ------------------
 col_info_left, col_info_right = st.columns([2, 1])
@@ -399,7 +399,7 @@ with col_right:
                     image,
                     channels="BGR",
                     caption="Original Image",
-                    use_column_width=True
+                    use_container_width=True
                 )
 
             with col_gc2:
@@ -410,7 +410,7 @@ with col_right:
                         gradcam_image,
                         channels="BGR",
                         caption="Grad-CAM Heatmap",
-                        use_column_width=True
+                        use_container_width=True
                     )
 
                 else:
@@ -443,8 +443,6 @@ with col_perf1:
 
     if os.path.exists("Figure_2.png"):
 
-        st.image("Figure_2.png", use_column_width=True)
-
         st.image("Figure_2.png", use_container_width=True)
     else:
 
@@ -456,8 +454,6 @@ with col_perf2:
     st.markdown("**Training Loss Curve**")
 
     if os.path.exists("Figure_1.png"):
-
-        st.image("Figure_1.png", use_column_width=True)
 
         st.image("Figure_1.png", use_container_width=True)
 
