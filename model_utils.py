@@ -3,7 +3,9 @@ import os
 import shutil
 import urllib.request
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
+from exceptions import ModelDownloadError
 
 DEFAULT_MODEL_PATH = "deepfake_detection_model.h5"
 MODEL_PATH_ENV = "PIXELTRUTH_MODEL_PATH"
@@ -42,6 +44,9 @@ def verify_sha256(file_path: str, expected_sha256: str) -> None:
         )
 
 
+DOWNLOAD_TIMEOUT = 60
+
+
 def download_model_file(url: str, destination_path: str) -> str:
     if not url:
         raise ValueError("A model download URL was not provided.")
@@ -50,8 +55,19 @@ def download_model_file(url: str, destination_path: str) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp_path = destination.with_suffix(destination.suffix + ".tmp")
 
-    with urllib.request.urlopen(url) as response, open(temp_path, "wb") as output_file:
-        shutil.copyfileobj(response, output_file)
+    try:
+        with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as response, open(
+            temp_path, "wb"
+        ) as output_file:
+            shutil.copyfileobj(response, output_file)
+    except HTTPError as e:
+        raise ModelDownloadError(
+            f"Failed to download model: HTTP {e.code} {e.reason}"
+        ) from e
+    except URLError as e:
+        raise ModelDownloadError(
+            f"Failed to download model: {e.reason}"
+        ) from e
 
     temp_path.replace(destination)
     return str(destination)
