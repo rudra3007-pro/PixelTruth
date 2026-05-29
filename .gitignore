@@ -6,4 +6,7 @@ dataset.zip
 *.h5
 
 .github/
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 .DS_Store
