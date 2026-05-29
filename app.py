@@ -183,7 +183,7 @@ if os.path.exists("coverpage.png"):
 
     st.image(
         "coverpage.png",
-        use_column_width=True
+        use_container_width=True
     )
 
 # ----------------------- TOP INFO SECTION ------------------
@@ -230,13 +230,13 @@ col_plot1, col_plot2 = st.columns(2)
 
 with col_plot1:
     if os.path.exists("Figure_1.png"):
-        st.image("Figure_1.png", use_column_width=True, caption="Training History")
+        st.image("Figure_1.png", use_container_width=True, caption="Training History")  # FIX #77: replaced deprecated use_column_width=True
     else:
         st.warning("Missing image: Figure_1.png")
 
 with col_plot2:
     if os.path.exists("Figure_2.png"):
-        st.image("Figure_2.png", use_column_width=True, caption="Evaluation Metrics")
+        st.image("Figure_2.png", use_container_width=True, caption="Evaluation Metrics")  # FIX #77: replaced deprecated use_column_width=True
     else:
         st.warning("Missing image: Figure_2.png")
 
@@ -254,10 +254,6 @@ with col_left:
 
     st.subheader("🖼 Upload Images")
 
-    # ----------------------------------------------------------
-    # accept_multiple_files=True enables batch analysis (Issue #52)
-    # The widget returns a list; an empty list means nothing uploaded.
-    # ----------------------------------------------------------
     uploaded_files = st.file_uploader(
         "Drop or browse social media images (select one or more)",
         type=["jpg", "jpeg", "png", "webp"],
@@ -292,8 +288,8 @@ with col_right:
         MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
         # ---- per-batch accumulators ----
-        batch_results = []          # list of result dicts for the summary table
-        batch_errors  = []          # list of (filename, error_message)
+        batch_results = []
+        batch_errors  = []
 
         # Initialise session history once
         if "prediction_history" not in st.session_state:
@@ -304,13 +300,11 @@ with col_right:
 
         for idx, uploaded_file in enumerate(uploaded_files):
 
-            # Update progress
             progress_bar.progress(
                 (idx + 1) / len(uploaded_files),
                 text=f"Analysing {uploaded_file.name} ({idx + 1}/{len(uploaded_files)})…"
             )
 
-            # --- size guard ---
             if uploaded_file.size > MAX_FILE_SIZE_BYTES:
                 batch_errors.append((
                     uploaded_file.name,
@@ -319,7 +313,6 @@ with col_right:
                 ))
                 continue
 
-            # --- decode raw bytes ---
             try:
                 raw_bytes = uploaded_file.read()
                 bgr_image = decode_image_bytes(raw_bytes)
@@ -328,7 +321,6 @@ with col_right:
                 batch_errors.append((uploaded_file.name, f"Could not read file: {e}"))
                 continue
 
-            # --- run inference ---
             label         = None
             confidence    = None
             processed_img = None
@@ -355,7 +347,6 @@ with col_right:
                 batch_errors.append((uploaded_file.name, f"Unexpected error: {e}"))
                 continue
 
-            # --- Grad-CAM (best-effort, non-blocking) ---
             gradcam_image = None
             try:
                 # Dynamic lookup avoids coupling Grad-CAM to layer ordering.
@@ -366,7 +357,6 @@ with col_right:
             except Exception as e:
                 logger.warning(f"Grad-CAM failed for {uploaded_file.name}: {e}", exc_info=True)
 
-            # --- accumulate result ---
             batch_results.append({
                 "filename":     uploaded_file.name,
                 "label":        label,
@@ -376,7 +366,6 @@ with col_right:
                 "is_uncertain": confidence < LOW_CONFIDENCE_THRESHOLD,
             })
 
-            # --- append to persistent session history (feeds CSV export) ---
             st.session_state.prediction_history.append({
                 "Filename":         uploaded_file.name,
                 "Result":           label,
@@ -386,9 +375,6 @@ with col_right:
 
         progress_bar.empty()
 
-        # ================================================================
-        # BATCH SUMMARY — aggregate metrics row
-        # ================================================================
         if batch_results:
 
             total     = len(batch_results)
@@ -406,9 +392,6 @@ with col_right:
 
             st.markdown("---")
 
-        # ================================================================
-        # PER-IMAGE RESULTS — each in a collapsible expander
-        # ================================================================
         for res in batch_results:
 
             is_uncertain = res["is_uncertain"]
@@ -437,14 +420,14 @@ with col_right:
                         res["bgr_image"],
                         channels="BGR",
                         caption="Uploaded image",
-                        use_column_width=True,
+                        use_container_width=True,
                     )
                     if res["gradcam"] is not None:
                         st.image(
                             res["gradcam"],
                             channels="BGR",
                             caption="Grad-CAM attention map",
-                            use_column_width=True,
+                            use_container_width=True,
                         )
 
                 with result_col:
@@ -468,9 +451,6 @@ with col_right:
                     st.caption(f"Confidence: {res['confidence'] * 100:.1f}%")
                     st.markdown("</div>", unsafe_allow_html=True)
 
-        # ================================================================
-        # ERROR REPORT — shown below successful results
-        # ================================================================
         if batch_errors:
 
             st.markdown("---")
