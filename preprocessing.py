@@ -14,14 +14,8 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
 
 MIN_IMAGE_DIM = 10
 
-# --- Decompression bomb protection (issue #47) ---
-# cv2.imdecode allocates the full uncompressed pixel buffer regardless of
-# how small the compressed file is, so a tiny PNG with huge declared
-# dimensions can crash the process with OOM. We use PIL to parse only the
-# header (microseconds, no pixel allocation) and reject oversized images
-# before cv2 sees them.
 MAX_PIXELS_ENV = "PIXELTRUTH_MAX_PIXELS"
-DEFAULT_MAX_PIXELS = 25_000_000  # 25 megapixels covers typical phone/DSLR photos
+DEFAULT_MAX_PIXELS = 25_000_000
 
 
 def _get_max_pixels() -> int:
@@ -37,13 +31,7 @@ def _get_max_pixels() -> int:
 
 
 def _validate_compressed_image_dimensions(image_bytes: bytes) -> None:
-    """Reject image bytes whose declared dimensions exceed the configured cap.
-
-    PIL's Image.open only reads the image header; it does not allocate the
-    full pixel buffer, so this is safe to run on untrusted input. PIL also
-    raises DecompressionBombError on its own (default ~89 MP); we catch that
-    and surface our own "too large" message for consistency.
-    """
+    """Reject image bytes whose declared dimensions exceed the configured cap."""
     max_pixels = _get_max_pixels()
     try:
         with Image.open(io.BytesIO(image_bytes)) as img:
@@ -89,6 +77,7 @@ def preprocess_image_array(image: np.ndarray) -> np.ndarray:
         image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
     else:
         raise ValueError(f"Unsupported image channel count: {image.shape[2]}.")
+
     image = cv2.resize(image, IMAGE_SIZE)
     image = image.astype("float32")
     image = np.expand_dims(image, axis=0)
@@ -127,32 +116,15 @@ def batch_preprocess(images: list[np.ndarray]) -> np.ndarray:
 
 @lru_cache(maxsize=0)
 def decode_image_bytes(image_bytes: bytes) -> np.ndarray:
-    """Decode raw bytes into a correctly oriented BGR numpy array.
-
-    Raises
-    ------
-    ValueError
-        When the bytes cannot be decoded into a valid image, or when the
-        image's declared dimensions exceed the configured pixel cap
-        (PIXELTRUTH_MAX_PIXELS env var, default 25 megapixels).
-    """
+    """Decode raw bytes into a correctly oriented BGR numpy array."""
     _validate_compressed_image_dimensions(image_bytes)
 
     try:
         pil_image = Image.open(BytesIO(image_bytes))
-
-        # Normalize EXIF orientation metadata
         pil_image = ImageOps.exif_transpose(pil_image)
-
-        # Ensure RGB format
         pil_image = pil_image.convert("RGB")
-
-        # Convert PIL -> NumPy
         image = np.array(pil_image)
-
-        # Convert RGB -> BGR for OpenCV compatibility
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
         return image
 
     except Exception as exc:
@@ -165,3 +137,19 @@ def decode_image_bytes(image_bytes: bytes) -> np.ndarray:
 def preprocess_image_bytes(image_bytes: bytes) -> np.ndarray:
     """Decode and preprocess bytes without retaining uploaded data in memory."""
     return preprocess_image_array(decode_image_bytes(image_bytes))
+
+
+def get_metadata_from_bytes(image_bytes: bytes) -> dict:
+    """Return metadata for an image provided as raw bytes.
+
+    Decodes the bytes and returns height, width, and channel count
+    without running the full preprocessing pipeline.
+
+    Args:
+        image_bytes: Raw bytes of an encoded image file.
+
+    Returns:
+        dict with keys 'height', 'width', and 'channels'.
+    """
+    image = decode_image_bytes(image_bytes)
+    return get_image_metadata(image)

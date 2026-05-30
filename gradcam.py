@@ -2,6 +2,22 @@ import numpy as np
 import cv2
 
 
+def get_backbone_submodel(model):
+    """Return the first nested tf.keras.Model found in model.layers."""
+    # Import TensorFlow lazily to avoid import-time side effects during tests
+    import tensorflow as tf
+
+    for layer in model.layers:
+        if isinstance(layer, tf.keras.Model):
+            return layer
+
+    raise ValueError(
+        "No backbone sub-model found in model.layers. "
+        "Ensure the model contains a nested tf.keras.Model."
+    )
+
+
+
 def make_gradcam_heatmap(img_array, model, last_conv_layer, pred_index=None):
     # Import TensorFlow lazily to avoid import-time side effects during tests
     import tensorflow as tf
