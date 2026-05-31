@@ -1,8 +1,14 @@
 import os
+import numpy as np
 import pandas as pd
 from datetime import datetime
 import streamlit as st
-from preprocessing import decode_image_bytes, preprocess_image_bytes, detect_and_crop_face, preprocess_image_array
+from preprocessing import (
+    decode_image_bytes,
+    preprocess_image_bytes,
+    detect_and_crop_face,
+    preprocess_image_array,
+)
 import logging
 
 from gradcam import get_backbone_submodel, make_gradcam_heatmap, overlay_heatmap
@@ -20,6 +26,7 @@ from inference import (
 )
 
 from metrics import (
+    load_cached_metrics,
     get_sample_metrics,
     get_confusion_matrix_plot,
     get_roc_curve_plot,
@@ -28,9 +35,11 @@ from metrics import (
     get_confusion_matrix_caption,
     get_roc_curve_caption,
     get_dataset_distribution_caption,
+    get_evaluated_at,
+    get_total_images,
 )
 
-from utils.model_loader import load_cached_model , get_model_mtime
+from utils.model_loader import load_cached_model, get_model_mtime
 
 logging.basicConfig(
     level=logging.INFO,
@@ -128,15 +137,12 @@ LOW_CONFIDENCE_THRESHOLD = 0.70
 # ----------------------- LOAD MODEL ------------------------
 
 try:
-
     with st.spinner("Loading AI model..."):
-
         model = load_cached_model(get_model_mtime())
 
     st.success("Model initialized successfully.")
 
 except Exception as e:
-
     logger.error(
         f"Model loading failed: {e}",
         exc_info=True
@@ -152,7 +158,6 @@ except Exception as e:
 preprocess_uploaded_image = _preprocess_uploaded_image
 
 try:
-
     preprocess_uploaded_image.cache_clear = preprocess_image_bytes.cache_clear
     preprocess_uploaded_image.cache_info = preprocess_image_bytes.cache_info
 
@@ -163,7 +168,6 @@ _ = preprocess_image
 
 
 def predict_image(image):
-
     return _predict_image(model, image)
 
 
@@ -180,7 +184,6 @@ st.markdown(
 )
 
 if os.path.exists("coverpage.png"):
-
     st.image(
         "coverpage.png",
         use_column_width=True
@@ -191,7 +194,6 @@ if os.path.exists("coverpage.png"):
 col_info_left, col_info_right = st.columns([2, 1])
 
 with col_info_left:
-
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
 
     st.subheader("🧠 Understanding Deepfakes")
@@ -207,7 +209,6 @@ with col_info_left:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col_info_right:
-
     st.markdown("<div class='glass-card metric-small'>", unsafe_allow_html=True)
 
     st.subheader("📈 Model Snapshot")
@@ -249,7 +250,6 @@ st.markdown("<br>", unsafe_allow_html=True)
 col_left, col_right = st.columns([1.3, 1])
 
 with col_left:
-
     st.markdown("<div class='glass-card upload-box'>", unsafe_allow_html=True)
 
     st.subheader("🖼 Upload Images")
@@ -264,42 +264,33 @@ with col_left:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col_right:
-
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
 
     st.subheader("📊 Detection Results")
 
     if not uploaded_files:
-
         st.write(
             "Upload one or more images on the left to run deepfake detection."
         )
 
     elif model is None:
-
         st.error(
             "Model could not be loaded. Detection is unavailable."
         )
 
     else:
-
-        # ---- constants ----
         MAX_FILE_SIZE_MB = 10
         MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
-        # ---- per-batch accumulators ----
         batch_results = []
-        batch_errors  = []
+        batch_errors = []
 
-        # Initialise session history once
         if "prediction_history" not in st.session_state:
             st.session_state.prediction_history = []
 
-        # ---- process every uploaded file ----
         progress_bar = st.progress(0, text="Analysing images…")
 
         for idx, uploaded_file in enumerate(uploaded_files):
-
             progress_bar.progress(
                 (idx + 1) / len(uploaded_files),
                 text=f"Analysing {uploaded_file.name} ({idx + 1}/{len(uploaded_files)})…"
@@ -321,24 +312,32 @@ with col_right:
                 batch_errors.append((uploaded_file.name, f"Could not read file: {e}"))
                 continue
 
-            label          = None
-            confidence     = None
-            processed_img  = None
-            face_image     = None
-            face_detected  = False
-            face_box       = None
-            box_image      = bgr_image.copy()
+            label = None
+            confidence = None
+            processed_img = None
+            face_image = None
+            face_detected = False
+            face_box = None
+            box_image = bgr_image.copy()
 
             try:
                 face_image, face_box = detect_and_crop_face(bgr_image)
+
                 if face_box is not None:
                     face_detected = True
                     x, y, w, h = face_box
+
                     import cv2
-                    cv2.rectangle(box_image, (x, y), (x + w, y + h), (94, 219, 120), 3)
+                    cv2.rectangle(
+                        box_image,
+                        (x, y),
+                        (x + w, y + h),
+                        (94, 219, 120),
+                        3
+                    )
 
                 processed_img = preprocess_image_array(face_image)
-                prediction    = model.predict(processed_img, verbose=0)
+                prediction = model.predict(processed_img, verbose=0)
 
                 from predict import decode_prediction
                 label, confidence, _ = decode_prediction(prediction)
@@ -359,66 +358,66 @@ with col_right:
                 continue
 
             gradcam_image = None
+
             try:
-                # Dynamic lookup avoids coupling Grad-CAM to layer ordering.
-                backbone_model  = get_backbone_submodel(model)
+                backbone_model = get_backbone_submodel(model)
                 last_conv_layer = find_last_conv_layer(backbone_model)
-                heatmap         = make_gradcam_heatmap(processed_img, backbone_model, last_conv_layer)
-                gradcam_image   = overlay_heatmap(face_image, heatmap)
+                heatmap = make_gradcam_heatmap(
+                    processed_img,
+                    backbone_model,
+                    last_conv_layer
+                )
+                gradcam_image = overlay_heatmap(face_image, heatmap)
+
             except Exception as e:
                 logger.warning(f"Grad-CAM failed for {uploaded_file.name}: {e}", exc_info=True)
 
             batch_results.append({
-                "filename":      uploaded_file.name,
-                "label":         label,
-                "confidence":    confidence,
-                "bgr_image":     bgr_image,
-                "box_image":     box_image,
-                "face_image":    face_image,
+                "filename": uploaded_file.name,
+                "label": label,
+                "confidence": confidence,
+                "bgr_image": bgr_image,
+                "box_image": box_image,
+                "face_image": face_image,
                 "face_detected": face_detected,
-                "gradcam":       gradcam_image,
-                "is_uncertain":  confidence < LOW_CONFIDENCE_THRESHOLD,
+                "gradcam": gradcam_image,
+                "is_uncertain": confidence < LOW_CONFIDENCE_THRESHOLD,
             })
 
             st.session_state.prediction_history.append({
-                "Filename":         uploaded_file.name,
-                "Result":           label,
-                "Confidence (%)":   f"{confidence * 100:.1f}",
-                "Timestamp":        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Filename": uploaded_file.name,
+                "Result": label,
+                "Confidence (%)": f"{confidence * 100:.1f}",
+                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             })
 
         progress_bar.empty()
 
         if batch_results:
-
-            total     = len(batch_results)
-            n_real    = sum(1 for r in batch_results if r["label"] == "Real")
-            n_fake    = total - n_real
-            avg_conf  = sum(r["confidence"] for r in batch_results) / total
+            total = len(batch_results)
+            n_real = sum(1 for r in batch_results if r["label"] == "Real")
+            n_fake = total - n_real
+            avg_conf = sum(r["confidence"] for r in batch_results) / total
 
             st.markdown("#### 📋 Batch Summary")
 
             s_col1, s_col2, s_col3, s_col4 = st.columns(4)
             s_col1.metric("Total Analysed", total)
-            s_col2.metric("✅ Real",  n_real)
-            s_col3.metric("🚨 Fake",  n_fake)
+            s_col2.metric("✅ Real", n_real)
+            s_col3.metric("🚨 Fake", n_fake)
             s_col4.metric("Avg Confidence", f"{avg_conf * 100:.1f}%")
 
             st.markdown("---")
 
         for res in batch_results:
-
             is_uncertain = res["is_uncertain"]
 
             if is_uncertain:
-                icon       = "🟡"
-                verdict    = "Uncertain"
+                icon = "🟡"
             elif res["label"] == "Real":
-                icon       = "🟢"
-                verdict    = "Authentic"
+                icon = "🟢"
             else:
-                icon       = "🔴"
-                verdict    = "Deepfake suspected"
+                icon = "🔴"
 
             expander_label = (
                 f"{icon} {res['filename']} — {res['label']} "
@@ -426,7 +425,6 @@ with col_right:
             )
 
             with st.expander(expander_label, expanded=(len(batch_results) == 1)):
-
                 img_col, result_col = st.columns([1.3, 1])
 
                 with img_col:
@@ -437,8 +435,14 @@ with col_right:
                             caption="Uploaded image (face detected)",
                             use_column_width=True,
                         )
-                        st.markdown("<div style='margin-top: 10px; margin-bottom: 5px; font-weight: 600;'>🔍 Model Input Analysis</div>", unsafe_allow_html=True)
+
+                        st.markdown(
+                            "<div style='margin-top: 10px; margin-bottom: 5px; font-weight: 600;'>🔍 Model Input Analysis</div>",
+                            unsafe_allow_html=True
+                        )
+
                         crop_col1, crop_col2 = st.columns(2)
+
                         with crop_col1:
                             st.image(
                                 res["face_image"],
@@ -446,6 +450,7 @@ with col_right:
                                 caption="Detected face region",
                                 use_column_width=True,
                             )
+
                         with crop_col2:
                             if res["gradcam"] is not None:
                                 st.image(
@@ -454,6 +459,7 @@ with col_right:
                                     caption="Grad-CAM face details",
                                     use_column_width=True,
                                 )
+
                     else:
                         st.image(
                             res["bgr_image"],
@@ -461,6 +467,7 @@ with col_right:
                             caption="Uploaded image (no face detected, full image analyzed)",
                             use_column_width=True,
                         )
+
                         if res["gradcam"] is not None:
                             st.image(
                                 res["gradcam"],
@@ -472,18 +479,19 @@ with col_right:
                 with result_col:
                     if is_uncertain:
                         style_class = "result-uncertain"
-                        headline    = "Low Confidence — Uncertain"
+                        headline = "Low Confidence — Uncertain"
                     elif res["label"] == "Real":
                         style_class = "result-real"
-                        headline    = "Authentic image"
+                        headline = "Authentic image"
                     else:
                         style_class = "result-fake"
-                        headline    = "Deepfake suspected"
+                        headline = "Deepfake suspected"
 
                     st.markdown(
                         f"<div class='{style_class}' style='padding-left:0.8rem;'>",
                         unsafe_allow_html=True,
                     )
+
                     st.markdown(f"### {icon} {headline}")
                     st.markdown(f"**Model prediction:** {res['label']}")
                     st.progress(res["confidence"])
@@ -491,7 +499,6 @@ with col_right:
                     st.markdown("</div>", unsafe_allow_html=True)
 
         if batch_errors:
-
             st.markdown("---")
             st.warning(f"⚠️ {len(batch_errors)} file(s) could not be processed:")
 
@@ -503,7 +510,6 @@ with col_right:
 # ----------------------- PREDICTION HISTORY / CSV EXPORT --
 
 if st.session_state.get("prediction_history"):
-
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.subheader("🗂 Prediction History")
@@ -521,3 +527,172 @@ if st.session_state.get("prediction_history"):
     )
 
     st.markdown("</div>", unsafe_allow_html=True)
+
+# ----------------------- MODEL ANALYTICS ------------------
+
+st.divider()
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+st.markdown("### 📊 Model Analytics Dashboard")
+st.caption("Comprehensive performance metrics and visualizations of the deepfake detection model")
+
+cached_metrics = load_cached_metrics()
+
+if cached_metrics is None:
+    st.warning(
+        "⚠️ No evaluation data found. The analytics dashboard requires "
+        "real model evaluation results."
+    )
+
+    st.markdown(
+        "Run the evaluation harness to generate real metrics:\n\n"
+        "```bash\n"
+        "python evaluate.py --test-dir path/to/test_data\n"
+        "```\n\n"
+        "The test directory should contain `real/` and `fake/` subdirectories "
+        "with labelled images."
+    )
+
+else:
+    evaluated_at = get_evaluated_at(cached_metrics)
+    total_imgs = get_total_images(cached_metrics)
+
+    if evaluated_at or total_imgs:
+        meta_parts = []
+
+        if evaluated_at:
+            meta_parts.append(f"Evaluated at: {evaluated_at}")
+
+        if total_imgs:
+            meta_parts.append(f"{total_imgs:,} test images")
+
+        st.caption(" | ".join(meta_parts))
+
+    metrics = get_sample_metrics(cached_metrics)
+    class_stats = get_class_statistics(cached_metrics)
+
+    if metrics:
+        st.markdown("#### 📈 Performance Metrics")
+
+        col_acc, col_prec, col_rec, col_f1 = st.columns(4)
+
+        with col_acc:
+            st.metric(
+                label="Accuracy",
+                value=f"{metrics['accuracy']:.1f}%",
+                help="Overall correctness: (TP + TN) / Total"
+            )
+
+        with col_prec:
+            st.metric(
+                label="Precision",
+                value=f"{metrics['precision']:.1f}%",
+                help="Positive accuracy: TP / (TP + FP)"
+            )
+
+        with col_rec:
+            st.metric(
+                label="Recall",
+                value=f"{metrics['recall']:.1f}%",
+                help="True positive rate: TP / (TP + FN)"
+            )
+
+        with col_f1:
+            st.metric(
+                label="F1-Score",
+                value=f"{metrics['f1_score']:.1f}%",
+                help="Harmonic mean of precision & recall"
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.divider()
+
+    st.markdown("#### 🎯 Classification Analysis")
+
+    col_cm, col_roc = st.columns(2)
+
+    with col_cm:
+        cm_fig = get_confusion_matrix_plot(cached_metrics)
+
+        if cm_fig:
+            st.plotly_chart(
+                cm_fig,
+                use_container_width=True,
+                config={'scrollZoom': True, 'displayModeBar': True}
+            )
+            st.caption(get_confusion_matrix_caption())
+
+    with col_roc:
+        roc_fig = get_roc_curve_plot(cached_metrics)
+
+        if roc_fig:
+            st.plotly_chart(
+                roc_fig,
+                use_container_width=True,
+                config={'scrollZoom': True, 'displayModeBar': True}
+            )
+            st.caption(get_roc_curve_caption())
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.divider()
+
+    st.markdown("#### 📊 Data & Class-Level Insights")
+
+    col_dist, col_stats = st.columns(2)
+
+    with col_dist:
+        dist_fig = get_dataset_distribution_plot(cached_metrics)
+
+        if dist_fig:
+            st.plotly_chart(
+                dist_fig,
+                use_container_width=True,
+                config={'scrollZoom': True, 'displayModeBar': True}
+            )
+            st.caption(get_dataset_distribution_caption())
+
+    with col_stats:
+        if class_stats:
+            st.markdown("**Per-Class Performance**")
+            st.caption("Accuracy breakdown by image category")
+
+            for idx, (class_label, stats) in enumerate(class_stats.items()):
+                if idx > 0:
+                    st.divider()
+
+                icon = "🟢" if class_label == "Real" else "🔴"
+                st.markdown(f"#### {icon} {class_label} Images")
+
+                col_s1, col_s2, col_s3 = st.columns(3)
+
+                with col_s1:
+                    st.metric(
+                        label="Total Samples",
+                        value=f"{stats['total_samples']:,}"
+                    )
+
+                with col_s2:
+                    st.metric(
+                        label="Correct Predictions",
+                        value=f"{stats['correctly_classified']:,}"
+                    )
+
+                with col_s3:
+                    st.metric(
+                        label="Accuracy",
+                        value=f"{stats['class_accuracy']:.1f}%"
+                    )
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ----------------------- FOOTER ----------------------------
+
+st.markdown(
+    '''
+<div style="text-align:center; margin-top:3rem; color:#6b7280; font-size:0.8rem;">
+  <hr style="border-color:rgba(75,85,99,0.6);" />
+  <p>🕵️ PixelTruth • Built with Streamlit & TensorFlow</p>
+</div>
+''',
+    unsafe_allow_html=True,
+)
