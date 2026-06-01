@@ -13,6 +13,7 @@ import logging
 
 from exif_analysis import extract_exif
 from gradcam import get_backbone_submodel, make_gradcam_heatmap, overlay_heatmap
+from ela_analysis import compute_ela, ela_uniformity_score
 
 from exceptions import (
     PreprocessingError,
@@ -375,6 +376,15 @@ with col_right:
             except Exception as e:
                 logger.warning(f"Grad-CAM failed for {uploaded_file.name}: {e}", exc_info=True)
 
+            ela_image = None
+            ela_score = None
+            try:
+                ela_image = compute_ela(raw_bytes)
+                if ela_image is not None:
+                    ela_score = ela_uniformity_score(ela_image)
+            except Exception as e:
+                logger.warning(f"ELA failed for {uploaded_file.name}: {e}")
+
             batch_results.append({
                 "filename": uploaded_file.name,
                 "label": label,
@@ -386,6 +396,8 @@ with col_right:
                 "gradcam": gradcam_image,
                 "is_uncertain": confidence < LOW_CONFIDENCE_THRESHOLD,
                 "exif": exif_data,
+                "ela_image": ela_image,
+                "ela_score": ela_score,
             })
 
             st.session_state.prediction_history.append({
@@ -479,6 +491,34 @@ with col_right:
                                 caption="Grad-CAM attention map (full image)",
                                 use_column_width=True,
                             )
+
+                    if res["ela_image"] is not None:
+                        st.markdown(
+                            "<div style='margin-top:10px; font-weight:600;'>"
+                            "⚡ Error Level Analysis (ELA)"
+                            "</div>",
+                            unsafe_allow_html=True
+                        )
+                        ela_col1, ela_col2 = st.columns([1, 2])
+                        with ela_col1:
+                            st.image(res["ela_image"], channels="BGR",
+                                     caption="ELA map", use_column_width=True)
+                        with ela_col2:
+                            score = res["ela_score"]
+                            if score is not None:
+                                if score > 0.75:
+                                    ela_verdict = "🔴 High uniformity — AI pattern"
+                                elif score > 0.5:
+                                    ela_verdict = "🟡 Moderate uniformity — uncertain"
+                                else:
+                                    ela_verdict = "🟢 Non-uniform — natural photo pattern"
+                                st.markdown(f"**ELA uniformity:** {ela_verdict}")
+                                st.progress(score)
+                                st.caption(
+                                    f"Uniformity score: {score:.2f} (0 = natural, 1 = AI-like). "
+                                    "AI-generated images often show uniform compression error "
+                                    "across all regions."
+                                )
 
                 with result_col:
                     if is_uncertain:
