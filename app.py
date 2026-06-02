@@ -15,9 +15,10 @@ from exceptions import (
 from inference import (
     preprocess_image,
     preprocess_uploaded_image as _preprocess_uploaded_image,
-    predict_image as _predict_image,
     find_last_conv_layer,
 )
+
+from predict import predict_image as _shared_predict_image
 
 from metrics import (
     get_sample_metrics,
@@ -163,8 +164,7 @@ _ = preprocess_image
 
 
 def predict_image(image):
-
-    return _predict_image(model, image)
+    return _shared_predict_image(image)
 
 
 # ----------------------- HEADER / HERO ---------------------
@@ -326,7 +326,10 @@ with col_right:
             processed_img = None
 
             try:
-                label, confidence, processed_img = predict_image(bgr_image)
+                prediction = predict_image(raw_bytes)
+                label = prediction["label"]
+                confidence = prediction["confidence"]
+                processed_img = prediction["processed_image"]
                 if label is None or confidence is None or processed_img is None:
                     raise ModelExecutionError("Model is not available for inference.")
 

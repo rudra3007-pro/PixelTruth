@@ -16,24 +16,12 @@ from exceptions import PreprocessingError, ModelExecutionError
 
 
 def decode_prediction(prediction: np.ndarray) -> Tuple[str, float]:
-    """Convert sigmoid or two-class softmax output to a label and confidence."""
-    scores = np.asarray(prediction, dtype=float).reshape(-1)
-    if scores.size == 1:
-        real_probability = float(scores[0])
-        if not 0.0 <= real_probability <= 1.0:
-            raise ModelExecutionError("Model returned a probability outside [0, 1].")
-        # Training directories are alphabetic: class 0 = fake, class 1 = real.
-        if real_probability >= 0.5:
-            return "Real", real_probability
-        return "Fake", 1.0 - real_probability
+    """Convert model output to a label/confidence using the canonical decoder."""
+    # Local import prevents a module-level dependency cycle.
+    from predict import decode_prediction as canonical_decode_prediction
 
-    if scores.size == 2:
-        class_label = int(np.argmax(scores))
-        return ("Real" if class_label == 1 else "Fake"), float(scores[class_label])
-
-    raise ModelExecutionError(
-        f"Unsupported model output shape: {np.asarray(prediction).shape}."
-    )
+    label, confidence, _ = canonical_decode_prediction(prediction)
+    return label, confidence
 
 
 def preprocess_image(image: np.ndarray) -> np.ndarray:
