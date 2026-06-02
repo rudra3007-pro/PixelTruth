@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 from datetime import datetime
 import streamlit as st
@@ -169,7 +170,7 @@ except Exception:
 
 _ = preprocess_image
 
-# Initialise prediction history containers in session state
+# Initialise prediction history containers in session state (one-time)
 if "prediction_history" not in st.session_state:
     st.session_state.prediction_history = []
 if "prediction_history_hashes" not in st.session_state:
@@ -296,7 +297,8 @@ with col_right:
         batch_results = []
         batch_errors = []
 
-        # prediction history is initialised once at module load
+        if "prediction_history" not in st.session_state:
+            st.session_state.prediction_history = []
 
         progress_bar = st.progress(0, text="Analysing images…")
 
@@ -421,14 +423,14 @@ with col_right:
                 st.session_state.prediction_history.append(history_entry)
                 st.session_state.prediction_history_hashes.add(entry_hash)
 
-                # Trim old entries if history exceeds max size
+                # Trim oldest entries when exceeding cap
                 while len(st.session_state.prediction_history) > MAX_HISTORY_ENTRIES:
                     old = st.session_state.prediction_history.pop(0)
                     old_hash = old.get("_hash")
                     if old_hash and old_hash in st.session_state.prediction_history_hashes:
                         st.session_state.prediction_history_hashes.remove(old_hash)
 
-            # Clear any prepared CSV since history changed
+            # Invalidate prepared CSV when history mutates
             st.session_state.prediction_csv = None
 
         progress_bar.empty()
@@ -604,8 +606,7 @@ if st.session_state.get("prediction_history"):
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.subheader("🗂 Prediction History")
 
-    # Show a lightweight preview (last 50 entries) to avoid constructing
-    # a very large DataFrame on every rerun.
+    # Lightweight preview to avoid building a large DataFrame on every rerun
     preview = st.session_state.prediction_history[-50:]
     if preview:
         preview_df = pd.DataFrame(preview)
@@ -613,16 +614,13 @@ if st.session_state.get("prediction_history"):
     else:
         st.write("No recent history to preview.")
 
-    btn_col1, btn_col2 = st.columns([1, 1])
-
-    with btn_col1:
+    c1, c2 = st.columns([1, 1])
+    with c1:
         if st.button("⬇️ Prepare CSV Report"):
-            # Build full DataFrame and store encoded CSV in session state
             full_df = pd.DataFrame(st.session_state.prediction_history)
             st.session_state.prediction_csv = full_df.to_csv(index=False).encode("utf-8")
             st.success("Report prepared — click Download to save the CSV.")
-
-    with btn_col2:
+    with c2:
         if st.button("🧹 Clear History"):
             st.session_state.prediction_history = []
             st.session_state.prediction_history_hashes = set()
